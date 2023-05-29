@@ -111,15 +111,27 @@ def enroll(request, course_id):
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
 def submit(request, course_id):
-    course = get_object_or_404(Course, pk=course_id)
+    # Get the user and course objects
     user = request.user
-    Enrollment.objects.get(user=user, course=course)
-    for key in request.POST:
-        if key.startswith('choice'):
-            value = request.POST[key]
-            choice_id = int(value)
-            submitted_anwsers.append(choice_id)
-    return submitted_anwsers    
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Get the associated enrollment object and create a submission object referring to it
+    enrollment = get_object_or_404(Enrollment, user=user, course=course)
+    submission = Submission.objects.create(enrollment=enrollment)
+    
+    # Collect the selected choices from exam form
+    selected_choices = []
+    for question_id in request.POST:
+        if question_id.startswith('question_'):
+            choice_id = request.POST.get(question_id)
+            choice = get_object_or_404(Choice, id=choice_id)
+            selected_choices.append(choice)
+    
+    # Add each selected choice object to the submission object
+    submission.choices.set(selected_choices)
+    
+    # Redirect to show_exam_result with the submission id
+    return redirect('show_exam_result', submission_id=submission.id)
 
 
 
@@ -140,7 +152,25 @@ def extract_answers(request):
         # Get the selected choice ids from the submission record
         # For each selected choice, check if it is a correct answer or not
         # Calculate the total score
-#def show_exam_result(request, course_id, submission_id):
+def show_exam_result(request, course_id, submission_id):
+    # Get course and submission based on their ids
+    course = get_object_or_404(Course, pk=course_id)
+    submission = get_object_or_404(Submission, pk=submission_id)
+
+    # Get the selected choice ids from the submission record
+    selected_choices = submission.choices.all()
+
+    # Check each selected choice if it is correct or not
+    score = 0
+    for choice in selected_choices:
+        if choice.is_correct:
+            score += 1
+
+    # Calculate the total score
+    total_score = (score / course.num_questions) * 100
+
+    # Render the result template
+    return render(request, 'result.html', {'course': course, 'submission': submission, 'total_score': total_score})
 
 
 
